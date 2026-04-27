@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photosynthetic ETC Simulator — IB Biology HL</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --surface2: #f0f4f0;
+  --surface3: #e8ede8;
+  --border: #d4ddd4;
+  --border2: #c2cec2;
+  --green: #16a34a;
+  --green-dim: #22c55e;
+  --green-dark: #166534;
+  --green-glow: rgba(22,163,74,0.10);
+  --amber: #b45309;
+  --blue: #1d4ed8;
+  --cyan: #0e7490;
+  --red: #dc2626;
+  --purple: #7c3aed;
+  --text: #1a201a;
+  --text2: #4a5e4a;
+  --text3: #7a8e7a;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --r: 6px;
+  --r2: 10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;overflow-x:hidden}
+
+/* ---- Layout ---- */
+#app{display:grid;grid-template-columns:260px 1fr 280px;grid-template-rows:auto 1fr;min-height:100vh;gap:0}
+#header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--surface)}
+#sidebar{border-right:1px solid var(--border);background:var(--surface);overflow-y:auto;padding:16px}
+#main{background:var(--bg);display:flex;flex-direction:column;overflow:hidden}
+#rightpanel{border-left:1px solid var(--border);background:var(--surface);overflow-y:auto;padding:16px}
+
+/* ---- Header ---- */
+.hdr-left{display:flex;align-items:center;gap:12px}
+.hdr-badge{background:var(--green-glow);border:1px solid var(--green-dark);color:var(--green);font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:4px;letter-spacing:.05em}
+.hdr-title{font-size:15px;font-weight:500;color:var(--text)}
+.hdr-sub{font-size:12px;color:var(--text3);font-family:var(--mono)}
+.hdr-right{display:flex;align-items:center;gap:10px}
+
+/* ---- Buttons ---- */
+.btn{font-family:var(--sans);font-size:13px;font-weight:500;border:none;cursor:pointer;border-radius:var(--r);padding:8px 16px;transition:all .15s}
+.btn-primary{background:var(--green);color:#ffffff}
+.btn-primary:hover{background:#6ee7a0}
+.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2)}
+.btn-ghost:hover{background:var(--surface2);color:var(--text)}
+#status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);display:inline-block;margin-right:6px;transition:background .3s}
+#status-dot.running{background:var(--green);box-shadow:0 0 6px var(--green)}
+#status-dot.saturated{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+#status-label{font-family:var(--mono);font-size:12px;color:var(--text2)}
+
+/* ---- Sidebar controls ---- */
+.ctrl-section{margin-bottom:20px}
+.ctrl-section-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.slider-group{margin-bottom:14px}
+.slider-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.slider-name{font-size:13px;color:var(--text);font-weight:500}
+.slider-val{font-family:var(--mono);font-size:13px;color:var(--green);font-weight:500}
+.slider-meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:3px}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;background:var(--border2);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--green);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--green-dark);cursor:pointer;transition:transform .1s}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--green);border:2px solid var(--bg);cursor:pointer}
+.wave-indicator{height:4px;border-radius:2px;margin-top:5px;background:linear-gradient(to right,#7c3aed,#3b82f6,#06b6d4,#22c55e,#eab308,#f97316,#ef4444);position:relative}
+.wave-cursor{position:absolute;top:-3px;width:10px;height:10px;border-radius:50%;background:#222;border:2px solid #fff;transform:translateX(-50%);transition:left .1s;box-shadow:0 0 4px rgba(0,0,0,.4)}
+.efficiency-pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:3px;margin-top:5px}
+
+/* ---- Main canvas area ---- */
+#sim-container{flex:1;position:relative;display:flex;flex-direction:column}
+#sim-canvas{width:100%;flex:1;display:block}
+.sim-overlay{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;gap:6px;padding:10px;pointer-events:none}
+.sim-legend{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);font-family:var(--mono)}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+
+/* ---- Tooltip ---- */
+#tooltip{position:fixed;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r2);padding:10px 13px;max-width:220px;font-size:12px;color:var(--text);pointer-events:none;z-index:100;display:none;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+#tooltip h4{font-size:12px;font-weight:600;color:var(--green);margin-bottom:5px}
+#tooltip p{color:var(--text2);line-height:1.6}
+
+/* ---- Right panel metrics ---- */
+.metric-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;margin-bottom:10px}
+.metric-label{font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.metric-value{font-family:var(--mono);font-size:22px;font-weight:500;color:var(--text)}
+.metric-unit{font-size:12px;color:var(--text3);margin-left:3px}
+.metric-bar-wrap{margin-top:7px;height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.metric-bar{height:100%;border-radius:2px;transition:width .3s}
+.limiting-badge{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;margin-top:6px;display:inline-block}
+.limiting-badge.active{background:rgba(251,191,36,.15);color:var(--amber);border:1px solid rgba(251,191,36,.3)}
+.limiting-badge.inactive{background:transparent;color:var(--text3);border:1px solid var(--border)}
+
+#graph-canvas{width:100%;border-radius:var(--r);display:block;margin-top:10px;background:var(--surface2);border:1px solid var(--border);}
+
+.section-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;margin-top:16px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* ---- Guided prompts ---- */
+#prompts{padding:10px 16px 16px;border-top:1px solid var(--border);background:var(--surface)}
+.prompt-item{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;font-size:12px;color:var(--text2);cursor:pointer;padding:7px 10px;border-radius:var(--r);border:1px solid transparent;transition:all .15s}
+.prompt-item:hover{background:var(--surface2);border-color:var(--border);color:var(--text)}
+.prompt-icon{color:var(--green);font-size:13px;margin-top:1px;flex-shrink:0}
+
+/* ---- Responsive ---- */
+@media(max-width:960px){
+  #app{grid-template-columns:220px 1fr;grid-template-rows:auto auto 1fr auto}
+  #rightpanel{grid-column:1/-1;border-left:none;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:12px}
+  #prompts{grid-column:1/-1}
+  .section-title{grid-column:1/-1}
+  #graph-canvas{grid-column:1/-1}
+}
+@media(max-width:640px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto}
+  #sidebar{border-right:none;border-bottom:1px solid var(--border)}
+  #main{min-height:320px}
+  #rightpanel{grid-column:1;display:block}
+  #prompts{grid-column:1}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header id="header">
+    <div class="hdr-left">
+      <span class="hdr-badge">IB BIO HL</span>
+      <div>
+        <div class="hdr-title">Photosynthetic Electron Transport Chain</div>
+        <div class="hdr-sub">Thylakoid membrane — light-dependent reactions</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <span id="status-dot"></span><span id="status-label">IDLE</span>
+      <button class="btn btn-ghost" id="btn-reset" style="padding:7px 12px">Reset</button>
+      <button class="btn btn-primary" id="btn-start">▶ Start</button>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" aria-label="Simulation controls">
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Light Conditions</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">Light Intensity</span>
+          <span class="slider-val" id="v-light">600</span>
+        </div>
+        <input type="range" min="0" max="2000" step="10" value="600" id="sl-light"
+               aria-label="Light intensity in micromol photons per square metre per second" aria-valuemin="0" aria-valuemax="2000">
+        <div class="slider-meta"><span>0</span><span>μmol m⁻² s⁻¹</span><span>2000</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">Wavelength</span>
+          <span class="slider-val" id="v-wave">680</span>
+        </div>
+        <input type="range" min="400" max="700" step="5" value="680" id="sl-wave"
+               aria-label="Light wavelength in nanometres" aria-valuemin="400" aria-valuemax="700">
+        <div class="slider-meta"><span>400 nm</span><span></span><span>700 nm</span></div>
+        <div class="wave-indicator"><div class="wave-cursor" id="wave-cursor"></div></div>
+        <div style="margin-top:6px">
+          <span class="efficiency-pill" id="wave-eff-pill" style="background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.3)">High absorption</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Environment</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">Temperature</span>
+          <span class="slider-val" id="v-temp">25</span>
+        </div>
+        <input type="range" min="0" max="50" step="1" value="25" id="sl-temp"
+               aria-label="Temperature in degrees Celsius" aria-valuemin="0" aria-valuemax="50">
+        <div class="slider-meta"><span>0 °C</span><span></span><span>50 °C</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">Water Availability</span>
+          <span class="slider-val" id="v-h2o">100</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value="100" id="sl-h2o"
+               aria-label="Water availability percentage" aria-valuemin="0" aria-valuemax="100">
+        <div class="slider-meta"><span>0 %</span><span></span><span>100 %</span></div>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Biochemical</div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">NADP⁺ Availability</span>
+          <span class="slider-val" id="v-nadp">80</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value="80" id="sl-nadp"
+               aria-label="NADP plus availability percentage" aria-valuemin="0" aria-valuemax="100">
+        <div class="slider-meta"><span>0 %</span><span></span><span>100 %</span></div>
+      </div>
+
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">ADP + Pᵢ Availability</span>
+          <span class="slider-val" id="v-adp">80</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value="80" id="sl-adp"
+               aria-label="ADP and inorganic phosphate availability percentage" aria-valuemin="0" aria-valuemax="100">
+        <div class="slider-meta"><span>0 %</span><span></span><span>100 %</span></div>
+      </div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-section-title">Inhibitor</div>
+      <div class="slider-group">
+        <div class="slider-header">
+          <span class="slider-name">DCMU (herbicide)</span>
+          <span class="slider-val" id="v-dcmu">0</span>
+        </div>
+        <input type="range" min="0" max="100" step="1" value="0" id="sl-dcmu"
+               aria-label="DCMU herbicide concentration in percent of maximum inhibition" aria-valuemin="0" aria-valuemax="100">
+        <div class="slider-meta"><span>0 %</span><span></span><span>100 %</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CANVAS -->
+  <main id="main">
+    <div id="sim-container">
+      <canvas id="sim-canvas" aria-label="Animated cross-section of the thylakoid membrane showing electron transport chain components"></canvas>
+      <div class="sim-overlay">
+        <div class="sim-legend"><div class="legend-dot" style="background:#facc15"></div>electron</div>
+        <div class="sim-legend"><div class="legend-dot" style="background:#67e8f9"></div>proton H⁺</div>
+        <div class="sim-legend"><div class="legend-dot" style="background:#f87171"></div>O₂</div>
+        <div class="sim-legend"><div class="legend-dot" style="background:#a78bfa"></div>NADPH</div>
+        <div class="sim-legend"><div class="legend-dot" style="background:#4ade80"></div>ATP</div>
+      </div>
+    </div>
+    <div id="prompts">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Guided investigation prompts</div>
+      <div class="prompt-item" onclick="sendPrompt(0)"><span class="prompt-icon">›</span>At what light intensity does ATP production plateau? Try increasing light intensity with NADP⁺ at 30%.</div>
+      <div class="prompt-item" onclick="sendPrompt(1)"><span class="prompt-icon">›</span>Which factor limits at high light intensity? Set light to 2000 and observe which metric becomes the bottleneck.</div>
+      <div class="prompt-item" onclick="sendPrompt(2)"><span class="prompt-icon">›</span>What happens when NADP⁺ is depleted? Reduce NADP⁺ to 5% and observe electron backlog behaviour.</div>
+    </div>
+  </main>
+
+  <!-- RIGHT PANEL -->
+  <aside id="rightpanel" aria-label="Simulation outputs">
+    <div class="section-title" style="margin-top:0">Live Outputs</div>
+
+    <div class="metric-card">
+      <div class="metric-label">ATP Production</div>
+      <div><span class="metric-value" id="m-atp">0.0</span><span class="metric-unit">ATP s⁻¹ (rel.)</span></div>
+      <div class="metric-bar-wrap"><div class="metric-bar" id="bar-atp" style="width:0%;background:var(--green)"></div></div>
+      <div><span class="limiting-badge inactive" id="lim-adp">ADP/Pᵢ limit</span></div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">NADPH Production</div>
+      <div><span class="metric-value" id="m-nadph">0.0</span><span class="metric-unit">NADPH s⁻¹ (rel.)</span></div>
+      <div class="metric-bar-wrap"><div class="metric-bar" id="bar-nadph" style="width:0%;background:var(--blue)"></div></div>
+      <div><span class="limiting-badge inactive" id="lim-nadp">NADP⁺ limit</span></div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">O₂ Evolution</div>
+      <div><span class="metric-value" id="m-o2">0.0</span><span class="metric-unit">O₂ s⁻¹ (rel.)</span></div>
+      <div class="metric-bar-wrap"><div class="metric-bar" id="bar-o2" style="width:0%;background:var(--red)"></div></div>
+      <div><span class="limiting-badge inactive" id="lim-h2o">H₂O limit</span></div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Proton Gradient (ΔpH)</div>
+      <div><span class="metric-value" id="m-grad">0.0</span><span class="metric-unit">units</span></div>
+      <div class="metric-bar-wrap"><div class="metric-bar" id="bar-grad" style="width:0%;background:var(--cyan)"></div></div>
+    </div>
+
+    <div class="metric-card" style="background:transparent;border-style:dashed">
+      <div class="metric-label" style="color:var(--amber)">Limiting Factor</div>
+      <div style="font-family:var(--mono);font-size:14px;color:var(--amber)" id="m-limiting">—</div>
+    </div>
+
+    <div class="section-title">ATP Output Over Time</div>
+    <canvas id="graph-canvas" height="140" aria-label="Line graph showing ATP production rate over simulation time"></canvas>
+
+    <div class="section-title">ETC Component Activity</div>
+    <div id="bar-chart-wrap"></div>
+  </aside>
+
+</div>
+<div id="tooltip"><h4 id="tt-title"></h4><p id="tt-body"></p></div>
+
+<script>
+(function(){
+"use strict";
+
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  running: false,
+  t: 0,
+  params: { light:600, wave:680, temp:25, h2o:100, nadp:80, adp:80, dcmu:0 },
+  outputs: { atp:0, nadph:0, o2:0, grad:0 },
+  atpHistory: [],
+  electrons: [],
+  protons: [],
+  particles: [],   // floating O2, ATP, NADPH
+  raf: null,
+  lastTime: 0,
+  simWidth: 0, simHeight: 0,
+  components: [],  // hit areas for tooltips
+  dirty: true
+};
+
+// ── DOM refs ──────────────────────────────────────────────────────────────
+const simCanvas = document.getElementById('sim-canvas');
+const ctx = simCanvas.getContext('2d');
+const graphCanvas = document.getElementById('graph-canvas');
+const gCtx = graphCanvas.getContext('2d');
+const btnStart = document.getElementById('btn-start');
+const btnReset = document.getElementById('btn-reset');
+const tooltip = document.getElementById('tooltip');
+const ttTitle = document.getElementById('tt-title');
+const ttBody = document.getElementById('tt-body');
+
+// ── Slider wiring ─────────────────────────────────────────────────────────
+const sliders = [
+  ['sl-light','v-light','light'],
+  ['sl-wave','v-wave','wave'],
+  ['sl-temp','v-temp','temp'],
+  ['sl-h2o','v-h2o','h2o'],
+  ['sl-nadp','v-nadp','nadp'],
+  ['sl-adp','v-adp','adp'],
+  ['sl-dcmu','v-dcmu','dcmu']
+];
+sliders.forEach(([id,vid,key]) => {
+  const el = document.getElementById(id);
+  const vEl = document.getElementById(vid);
+  el.addEventListener('input', ()=>{
+    S.params[key] = parseFloat(el.value);
+    vEl.textContent = el.value;
+    S.dirty = true;
+    if(key==='wave') updateWaveUI(S.params.wave);
+  });
+});
+
+function updateWaveUI(nm){
+  const pct = (nm-400)/300*100;
+  document.getElementById('wave-cursor').style.left = pct+'%';
+  const eff = wavelengthFactor(nm);
+  const pill = document.getElementById('wave-eff-pill');
+  if(eff>0.7){pill.textContent='High absorption';pill.style.cssText='background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.3)'}
+  else if(eff>0.4){pill.textContent='Moderate absorption';pill.style.cssText='background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.3)'}
+  else{pill.textContent='Low absorption';pill.style.cssText='background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)'}
+}
+updateWaveUI(680);
+
+// ── Physics model ─────────────────────────────────────────────────────────
+function wavelengthFactor(nm){
+  if(nm<=430) return .55+(nm-400)/30*.45;
+  if(nm<=460) return 1-(nm-430)/30*.15;
+  if(nm<=540) return .85-(nm-460)/80*.45;
+  if(nm<=580) return .40+(nm-540)/40*.1;
+  if(nm<=620) return .50+(nm-580)/40*.2;
+  if(nm<=680) return .70+(nm-620)/60*.3;
+  if(nm<=700) return 1-(nm-680)/20*.3;
+  return .7;
+}
+function tempFactor(t){
+  if(t<5)return t/5*.3;
+  if(t<=30)return .3+(t-5)/25*.7;
+  if(t<=37)return 1-(t-30)/7*.2;
+  if(t<=45)return .8-(t-37)/8*.65;
+  return Math.max(0,.15-(t-45)/5*.15);
+}
+function compute(p){
+  const lightN = p.light/2000;
+  const wf = wavelengthFactor(p.wave);
+  const tf = tempFactor(p.temp);
+  const h2o = p.h2o/100;
+  const nadp = p.nadp/100;
+  const adp = p.adp/100;
+  const dcmu = 1 - p.dcmu/100;
+
+  const psii = lightN * wf * h2o * dcmu;
+  const pq   = psii * Math.min(1, nadp*1.3);
+  const cytb = pq * tf;
+  const psi  = cytb * wf * .98;
+  const nadph= psi * nadp;
+  const atp  = cytb * adp * tf;
+  const o2   = psii * h2o * .9;
+  const grad = cytb * .8;
+
+  // find limiting factor
+  const factors = [
+    {name:'Light intensity', val: lightN*wf},
+    {name:'Water / photolysis', val: h2o},
+    {name:'NADP⁺ availability', val: nadp},
+    {name:'ADP + Pᵢ availability', val: adp},
+    {name:'Temperature', val: tf},
+    {name:'DCMU inhibition', val: dcmu}
+  ];
+  let lim = factors.reduce((a,b)=> a.val<b.val? a:b);
+  if(lim.val>0.85) lim = {name:'None — near optimal', val:1};
+
+  return {psii,pq,cytb,psi,nadph,atp,o2,grad,lim,tf};
+}
+
+// ── Canvas sizing ─────────────────────────────────────────────────────────
+function resizeCanvases(){
+  const container = document.getElementById('sim-container');
+  const w = container.clientWidth;
+  const h = Math.max(260, container.clientHeight - 80);
+  simCanvas.width = w * devicePixelRatio;
+  simCanvas.height = h * devicePixelRatio;
+  simCanvas.style.height = h + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  S.simWidth = w; S.simHeight = h;
+
+  graphCanvas.width = graphCanvas.offsetWidth * devicePixelRatio;
+  graphCanvas.height = 140 * devicePixelRatio;
+  gCtx.scale(devicePixelRatio, devicePixelRatio);
+  S.dirty = true;
+}
+const ro = new ResizeObserver(resizeCanvases);
+ro.observe(document.getElementById('sim-container'));
+ro.observe(graphCanvas);
+setTimeout(resizeCanvases, 100);
+
+// ── Drawing helpers ───────────────────────────────────────────────────────
+function hex(h, a=1){
+  if(a===1) return h;
+  const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function roundRect(cx,x,y,w,h,r){
+  cx.beginPath();cx.roundRect(x,y,w,h,r);cx.fill();
+}
+function label(cx,txt,x,y,size=11,col='#6b756a',align='center'){
+  cx.font=`${size}px 'DM Mono', monospace`;
+  cx.fillStyle=col;cx.textAlign=align;
+  cx.fillText(txt,x,y);
+}
+
+// ── Membrane geometry (computed) ─────────────────────────────────────────
+function getGeo(W,H){
+  const my = H*0.48;  // membrane y-center
+  const mh = Math.max(54, H*0.14);
+  const topY = my - mh/2;
+  const botY = my + mh/2;
+  const lumH = H*0.28;
+  const lumBot = topY;
+  const lumTop = topY - lumH;
+  const stromaTop = botY;
+  const stromaBot = H - 20;
+
+  // component positions along membrane (x fractions)
+  const margin = W*0.06;
+  const span = W - margin*2;
+  const cx = [
+    margin + span*0.12,  // PSII
+    margin + span*0.32,  // PQ
+    margin + span*0.50,  // Cyt b6f
+    margin + span*0.67,  // PC
+    margin + span*0.82,  // PSI
+    margin + span*0.94,  // ATP synthase (between stroma/lumen)
+  ];
+  return {my,mh,topY,botY,lumTop,lumBot,stromaTop,stromaBot,cx,margin,span,W,H};
+}
+
+// ── Main draw ─────────────────────────────────────────────────────────────
+function drawSim(out, p){
+  const W = S.simWidth, H = S.simHeight;
+  if(W<10||H<10) return;
+  ctx.clearRect(0,0,W,H);
+  const g = getGeo(W,H);
+  S.components = [];
+
+  const rate = out.psii; // 0-1 overall flow
+
+  // ---- Background zones ----
+  // Stroma
+  ctx.fillStyle='#e8f0e8';
+  roundRect(ctx,0,0,W,H,0);
+
+  // Lumen (inside thylakoid)
+  const lumAlpha = 0.12 + out.grad*0.25;
+  ctx.fillStyle=`rgba(14,116,144,${lumAlpha})`;
+  ctx.fillRect(0, g.lumTop, W, g.lumBot-g.lumTop);
+
+  // Lumen label
+  label(ctx,'LUMEN (thylakoid interior)',W/2,g.lumTop+14,10,'#0e749099');
+
+  // Stroma label
+  label(ctx,'STROMA',W/2,g.stromaBot-6,10,'#16a34a88');
+
+  // ---- Thylakoid membrane ----
+  // Outer border top
+  ctx.fillStyle='#a7d4b0';
+  ctx.fillRect(0, g.topY-4, W, 4);
+  // Membrane body
+  ctx.fillStyle='#c5dfc8';
+  ctx.fillRect(0, g.topY, W, g.mh);
+  // Membrane texture: phospholipid dots
+  ctx.fillStyle='#1e3a1e';
+  const dotStep = 14;
+  for(let x=6;x<W;x+=dotStep){
+    ctx.beginPath();ctx.arc(x,g.topY+5,2.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(x,g.botY-5,2.5,0,Math.PI*2);ctx.fill();
+  }
+  // Outer border bottom
+  ctx.fillStyle='#a7d4b0';
+  ctx.fillRect(0, g.botY, W, 4);
+
+  // ---- ETC pathway line ----
+  const pathY = g.topY + g.mh*0.38;
+  ctx.save();
+  ctx.strokeStyle=`rgba(22,163,74,${0.2+rate*0.5})`;
+  ctx.lineWidth=2;ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  ctx.moveTo(g.cx[0],pathY);
+  for(let i=1;i<=4;i++) ctx.lineTo(g.cx[i],pathY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // ---- Draw components ----
+  drawPSII(ctx,g,out,p);
+  drawPQ(ctx,g,out);
+  drawCytb6f(ctx,g,out);
+  drawPC(ctx,g,out);
+  drawPSI(ctx,g,out,p);
+  drawATPSynthase(ctx,g,out);
+  drawNADPReductase(ctx,g,out);
+
+  // ---- Proton dots in lumen ----
+  drawProtonGradient(ctx,g,out);
+
+  // ---- Moving particles ----
+  drawParticles(ctx,g,out);
+
+  // ---- Light arrows ----
+  if(p.light>10) drawLightArrows(ctx,g,p);
+}
+
+function drawPSII(cx,g,out,p){
+  const x=g.cx[0], topY=g.topY, mh=g.mh;
+  const active = out.psii > 0.05;
+  const col = active ? '#bbf7d0' : '#d1e7d4';
+  const accent = active ? '#16a34a' : '#9ab89e';
+  cx.fillStyle=col;
+  cx.fillRect(x-22,topY,44,mh);
+  cx.strokeStyle=accent;cx.lineWidth=1;
+  cx.strokeRect(x-22,topY,44,mh);
+  label(cx,'PSII',x,topY+mh/2+4,10,active?'#14532d':'#6a8a6a');
+
+  // water photolysis arrow
+  if(out.o2>0.05){
+    cx.strokeStyle=`rgba(29,78,216,${out.o2*0.8})`;
+    cx.lineWidth=1.5;cx.setLineDash([2,3]);
+    cx.beginPath();cx.moveTo(x,g.lumTop+10);cx.lineTo(x,g.topY-2);cx.stroke();
+    cx.setLineDash([]);
+    label(cx,'H₂O',x-18,g.lumTop+22,9,'#1d4ed888');
+  }
+
+  // register hit area
+  S.components.push({
+    x:x-22,y:topY,w:44,h:mh,
+    title:'Photosystem II (PSII)',
+    body:'Absorbs light (~680 nm). Excited electrons leave the reaction centre P680. Water photolysis (2H₂O → 4H⁺ + 4e⁻ + O₂) replaces electrons. Protons released into the lumen.'
+  });
+}
+
+function drawPQ(cx,g,out){
+  const x=g.cx[1],y=g.topY+g.mh*0.3;
+  const active=out.pq>0.05;
+  cx.fillStyle=active?'#d1fae5':'#e2ede3';
+  cx.beginPath();cx.ellipse(x,g.topY+g.mh/2,20,12,0,0,Math.PI*2);cx.fill();
+  cx.strokeStyle=active?'#16a34a':'#9ab89e';cx.lineWidth=1;
+  cx.beginPath();cx.ellipse(x,g.topY+g.mh/2,20,12,0,0,Math.PI*2);cx.stroke();
+  label(cx,'PQ',x,g.topY+g.mh/2+4,9,active?'#14532d':'#6a8a6a');
+  S.components.push({
+    x:x-20,y:g.topY,w:40,h:g.mh,
+    title:'Plastoquinone (PQ)',
+    body:'Mobile electron carrier in the thylakoid membrane. Picks up 2e⁻ and 2H⁺ from the stroma, becoming PQH₂ (plastoquinol). Diffuses to Cyt b₆f complex. Membrane fluidity (temperature-dependent) controls diffusion rate.'
+  });
+}
+
+function drawCytb6f(cx,g,out){
+  const x=g.cx[2],topY=g.topY,mh=g.mh;
+  const active=out.cytb>0.05;
+  cx.fillStyle=active?'#dbeafe':'#e4eaf6';
+  cx.fillRect(x-24,topY,48,mh);
+  cx.strokeStyle=active?'#1d4ed8':'#9aaac8';cx.lineWidth=1;
+  cx.strokeRect(x-24,topY,48,mh);
+  label(cx,'Cyt b₆f',x,topY+mh/2+4,9,active?'#1e3a8a':'#6a7a90');
+
+  // H+ pump arrow
+  if(out.grad>0.1){
+    cx.strokeStyle=`rgba(14,116,144,${out.grad*0.8})`;
+    cx.lineWidth=1.5;cx.setLineDash([2,3]);
+    cx.beginPath();cx.moveTo(x,topY+mh*0.8);cx.lineTo(x,g.lumBot-4);cx.stroke();
+    cx.setLineDash([]);
+    label(cx,'H⁺',x+8,topY+mh+8,9,'#0e749099');
+  }
+  S.components.push({
+    x:x-24,y:topY,w:48,h:mh,
+    title:'Cytochrome b₆f Complex',
+    body:'Oxidises PQH₂, releasing 2H⁺ into the lumen (Q-cycle). Passes electrons to plastocyanin. The major site of proton pumping — drives the proton-motive force used by ATP synthase.'
+  });
+}
+
+function drawPC(cx,g,out){
+  const x=g.cx[3];
+  const active=out.cytb>0.05;
+  cx.fillStyle=active?'#ede9fe':'#eae8f2';
+  cx.beginPath();cx.arc(x,g.topY+8,10,0,Math.PI*2);cx.fill();
+  cx.strokeStyle=active?'#7c3aed':'#aaaac8';cx.lineWidth=1;
+  cx.beginPath();cx.arc(x,g.topY+8,10,0,Math.PI*2);cx.stroke();
+  label(cx,'PC',x,g.topY+12,8,active?'#5b21b6':'#7a7a90');
+  S.components.push({
+    x:x-12,y:g.topY-4,w:24,h:24,
+    title:'Plastocyanin (PC)',
+    body:'Small copper-containing protein. Mobile electron carrier in the lumen. Shuttles electrons from Cyt b₆f to the P700 reaction centre of PSI. Activity is temperature-sensitive.'
+  });
+}
+
+function drawPSI(cx,g,out,p){
+  const x=g.cx[4],topY=g.topY,mh=g.mh;
+  const active=out.psi>0.05;
+  cx.fillStyle=active?'#ede9fe':'#e5e3f0';
+  cx.fillRect(x-22,topY,44,mh);
+  cx.strokeStyle=active?'#7c3aed':'#aaaac0';cx.lineWidth=1;
+  cx.strokeRect(x-22,topY,44,mh);
+  label(cx,'PSI',x,topY+mh/2+4,10,active?'#4c1d95':'#7a7090');
+
+  S.components.push({
+    x:x-22,y:topY,w:44,h:mh,
+    title:'Photosystem I (PSI)',
+    body:'Absorbs light (~700 nm). Re-energises electrons received from PC. Excited electrons passed to ferredoxin and then to NADP⁺ reductase. Drives NADPH production in the stroma.'
+  });
+}
+
+function drawATPSynthase(cx,g,out){
+  const x=g.cx[5],topY=g.topY,mh=g.mh;
+  const active=out.atp>0.05;
+  // stalk
+  cx.fillStyle=active?'#dcfce7':'#e4ede4';
+  cx.fillRect(x-5,topY,10,mh+20);
+  // head in stroma
+  cx.fillStyle=active?'#bbf7d0':'#d4e8d4';
+  cx.beginPath();cx.arc(x,topY+mh+20,16,0,Math.PI*2);cx.fill();
+  cx.strokeStyle=active?'#16a34a':'#9ab89a';cx.lineWidth=1;
+  cx.beginPath();cx.arc(x,topY+mh+20,16,0,Math.PI*2);cx.stroke();
+  label(cx,'ATP',x,topY+mh+25,9,active?'#14532d':'#6a8a6a');
+  label(cx,'synthase',x,topY+mh+37,8,active?'#16a34a99':'#6a8a6a');
+
+  // H+ flow arrow through
+  if(out.grad>0.1){
+    cx.strokeStyle=`rgba(14,116,144,${out.grad*0.8})`;
+    cx.lineWidth=2;
+    cx.beginPath();cx.moveTo(x,g.lumTop+6);cx.lineTo(x,topY);cx.stroke();
+    const arrowY=topY+4;
+    cx.beginPath();cx.moveTo(x-4,arrowY-6);cx.lineTo(x,arrowY);cx.lineTo(x+4,arrowY-6);cx.stroke();
+  }
+  S.components.push({
+    x:x-18,y:topY-2,w:36,h:mh+40,
+    title:'ATP Synthase (CF₀CF₁)',
+    body:'Embedded in the thylakoid membrane. H⁺ flow through CF₀ drives rotation of CF₁, catalysing ADP + Pᵢ → ATP (photophosphorylation). Rate depends on proton gradient strength and ADP/Pᵢ availability.'
+  });
+}
+
+function drawNADPReductase(cx,g,out){
+  const x=g.cx[4]+36, y=g.botY+8;
+  const active=out.nadph>0.05;
+  cx.fillStyle=active?'#ede9fe':'#e5e3f0';
+  cx.fillRect(x-18,y,36,22);
+  cx.strokeStyle=active?'#7c3aed':'#aaaac0';cx.lineWidth=1;
+  cx.strokeRect(x-18,y,36,22);
+  label(cx,'FNR',x,y+14,9,active?'#4c1d95':'#7a7090');
+  S.components.push({
+    x:x-18,y,w:36,h:22,
+    title:'Ferredoxin–NADP⁺ Reductase (FNR)',
+    body:'Located on the stromal face of the thylakoid. Uses electrons from ferredoxin (from PSI) to reduce NADP⁺ + H⁺ → NADPH. When NADP⁺ is scarce, electrons back up, inhibiting PSI and the whole chain.'
+  });
+}
+
+function drawProtonGradient(cx,g,out){
+  if(out.grad<0.05) return;
+  const count = Math.floor(out.grad * 18);
+  for(let i=0;i<count;i++){
+    const x = 30 + (i/(count||1))*(S.simWidth-60) + Math.sin(S.t*0.4+i)*4;
+    const y = g.lumTop + 8 + Math.sin(S.t*0.3+i*1.2)*4;
+    cx.fillStyle=`rgba(14,116,144,${0.6+out.grad*0.35})`;
+    cx.beginPath();cx.arc(x,y,3,0,Math.PI*2);cx.fill();
+    cx.fillStyle='rgba(14,116,144,0.9)';
+    cx.font='6px DM Mono';cx.textAlign='center';
+    cx.fillText('+',x,y+2);
+  }
+}
+
+function drawLightArrows(cx,g,p){
+  const intensity = p.light/2000;
+  const wf = wavelengthFactor(p.wave);
+  const nm = p.wave;
+  // map wavelength to colour
+  let col;
+  if(nm<450) col=`rgba(124,58,237,${0.3+wf*0.5})`;
+  else if(nm<500) col=`rgba(59,130,246,${0.3+wf*0.5})`;
+  else if(nm<570) col=`rgba(34,197,94,${0.3+wf*0.5})`;
+  else if(nm<620) col=`rgba(234,179,8,${0.3+wf*0.5})`;
+  else col=`rgba(239,68,68,${0.3+wf*0.5})`;
+
+  const numArrows = Math.ceil(intensity*6);
+  const positions = [g.cx[0], g.cx[4]];
+  positions.forEach(px=>{
+    for(let i=0;i<numArrows;i++){
+      const ox=(i-(numArrows-1)/2)*12;
+      const animY=((S.t*60+i*40)%120)-20;
+      const baseY=g.lumTop-20-animY*0.4;
+      cx.strokeStyle=col;cx.lineWidth=1.5;
+      cx.beginPath();
+      cx.moveTo(px+ox,baseY);
+      cx.lineTo(px+ox,baseY+30);
+      const ay=baseY+30;
+      cx.moveTo(px+ox-4,ay-7);cx.lineTo(px+ox,ay);cx.lineTo(px+ox+4,ay-7);
+      cx.stroke();
+    }
+  });
+}
+
+function drawParticles(cx,g,out){
+  S.particles.forEach(pt=>{
+    cx.globalAlpha=pt.alpha;
+    cx.fillStyle=pt.col;
+    cx.beginPath();cx.arc(pt.x,pt.y,pt.r,0,Math.PI*2);cx.fill();
+    if(pt.label){
+      cx.font=`7px DM Mono`;cx.textAlign='center';cx.fillStyle=pt.col;
+      cx.fillText(pt.label,pt.x,pt.y-pt.r-2);
+    }
+    cx.globalAlpha=1;
+  });
+}
+
+function drawGraph(){
+  const W = graphCanvas.offsetWidth, H = 140;
+  if(W<10) return;
+  gCtx.clearRect(0,0,W,H);
+  gCtx.fillStyle='#f0f4f0';gCtx.fillRect(0,0,W,H);
+
+  const pad={l:36,r:10,t:10,b:28};
+  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+
+  // gridlines
+  gCtx.strokeStyle='#d4ddd4';gCtx.lineWidth=0.5;
+  for(let i=0;i<=4;i++){
+    const y=pad.t+ch-(i/4)*ch;
+    gCtx.beginPath();gCtx.moveTo(pad.l,y);gCtx.lineTo(pad.l+cw,y);gCtx.stroke();
+    gCtx.fillStyle='#4a6a4a';gCtx.font='9px DM Mono';gCtx.textAlign='right';
+    gCtx.fillText((i*25)+'%',pad.l-4,y+3);
+  }
+
+  // x axis
+  gCtx.fillStyle='#4a6a4a';gCtx.font='9px DM Mono';gCtx.textAlign='center';
+  gCtx.fillText('time →',pad.l+cw/2,H-4);
+  gCtx.fillStyle='#16a34a99';gCtx.font='8px DM Mono';gCtx.textAlign='left';
+  gCtx.fillText('ATP',pad.l+4,pad.t+10);
+
+  if(S.atpHistory.length<2) return;
+
+  const maxN=200;
+  const data=S.atpHistory.slice(-maxN);
+  gCtx.strokeStyle='#16a34a';gCtx.lineWidth=1.5;
+  gCtx.beginPath();
+  data.forEach((v,i)=>{
+    const x=pad.l+i/(maxN-1)*cw;
+    const y=pad.t+ch-(v/100)*ch;
+    i===0?gCtx.moveTo(x,y):gCtx.lineTo(x,y);
+  });
+  gCtx.stroke();
+
+  // fill under
+  gCtx.save();
+  const last=data[data.length-1];
+  gCtx.lineTo(pad.l+cw,pad.t+ch);gCtx.lineTo(pad.l,pad.t+ch);gCtx.closePath();
+  const grad=gCtx.createLinearGradient(0,pad.t,0,pad.t+ch);
+  grad.addColorStop(0,'rgba(22,163,74,0.15)');grad.addColorStop(1,'rgba(22,163,74,0)');
+  gCtx.fillStyle=grad;gCtx.fill();
+  gCtx.restore();
+}
+
+function drawBarChart(out){
+  const wrap=document.getElementById('bar-chart-wrap');
+  const items=[
+    {label:'PSII',val:out.psii,col:'#4ade80'},
+    {label:'PQ',val:out.pq,col:'#22c55e'},
+    {label:'Cyt b₆f',val:out.cytb,col:'#60a5fa'},
+    {label:'PSI',val:out.psi,col:'#a78bfa'},
+    {label:'FNR',val:out.nadph,col:'#818cf8'},
+  ];
+  wrap.innerHTML=items.map(it=>{
+    const pct=Math.round(Math.min(1,it.val)*100);
+    return `<div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+        <span style="color:var(--text2);font-family:var(--mono)">${it.label}</span>
+        <span style="color:${it.col};font-family:var(--mono)">${pct}%</span>
+      </div>
+      <div style="height:3px;background:var(--border2);border-radius:2px">
+        <div style="width:${pct}%;height:100%;background:${it.col};border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Particle spawner ───────────────────────────────────────────────────────
+function spawnParticles(g,out){
+  const rate=out.psii;
+  if(!S.running||rate<0.05) return;
+
+  // O2 from PSII
+  if(Math.random()<rate*0.15){
+    S.particles.push({x:g.cx[0]+(Math.random()-0.5)*20,y:g.lumTop+5,vy:-0.8-Math.random()*0.6,vx:(Math.random()-0.5)*0.4,r:3,col:'#f87171',alpha:1,label:'O₂',life:80});
+  }
+  // ATP from ATP synthase
+  if(Math.random()<out.atp*0.12){
+    S.particles.push({x:g.cx[5]+(Math.random()-0.5)*10,y:g.botY+22,vy:0.5+Math.random()*0.4,vx:(Math.random()-0.5)*0.6,r:4,col:'#4ade80',alpha:1,label:'ATP',life:90});
+  }
+  // NADPH
+  if(Math.random()<out.nadph*0.1){
+    S.particles.push({x:g.cx[4]+40+(Math.random()-0.5)*10,y:g.botY+18,vy:0.5+Math.random()*0.3,vx:0.4+Math.random()*0.3,r:4,col:'#a78bfa',alpha:1,label:'NADPH',life:100});
+  }
+}
+
+function updateParticles(){
+  S.particles=S.particles.filter(p=>{
+    p.x+=p.vx;p.y+=p.vy;p.life--;
+    p.alpha=Math.min(1,p.life/20);
+    return p.life>0;
+  });
+}
+
+// ── Update UI outputs ─────────────────────────────────────────────────────
+function updateOutputs(out){
+  const fmt=v=>Math.round(Math.min(100,v*100));
+  document.getElementById('m-atp').textContent=fmt(out.atp).toFixed(0);
+  document.getElementById('m-nadph').textContent=fmt(out.nadph).toFixed(0);
+  document.getElementById('m-o2').textContent=fmt(out.o2).toFixed(0);
+  document.getElementById('m-grad').textContent=(out.grad*3.5).toFixed(1);
+
+  document.getElementById('bar-atp').style.width=fmt(out.atp)+'%';
+  document.getElementById('bar-nadph').style.width=fmt(out.nadph)+'%';
+  document.getElementById('bar-o2').style.width=fmt(out.o2)+'%';
+  document.getElementById('bar-grad').style.width=fmt(out.grad)+'%';
+
+  // limiting factor badges
+  const setLim=(id,active)=>{
+    const el=document.getElementById(id);
+    el.className='limiting-badge '+(active?'active':'inactive');
+  };
+  setLim('lim-adp', out.lim.name.includes('ADP'));
+  setLim('lim-nadp', out.lim.name.includes('NADP'));
+  setLim('lim-h2o', out.lim.name.includes('Water'));
+  document.getElementById('m-limiting').textContent=out.lim.name;
+
+  // status
+  const dot=document.getElementById('status-dot');
+  const lbl=document.getElementById('status-label');
+  if(!S.running){dot.className='';lbl.textContent='IDLE'}
+  else if(out.atp>0.85){dot.className='running saturated';lbl.textContent='SATURATED'}
+  else if(out.atp>0.05){dot.className='running';lbl.textContent='RUNNING'}
+  else{dot.className='';lbl.textContent='LOW FLUX'}
+
+  S.atpHistory.push(fmt(out.atp));
+  if(S.atpHistory.length>500) S.atpHistory.shift();
+
+  drawGraph();
+  drawBarChart(out);
+}
+
+// ── Animation loop ─────────────────────────────────────────────────────────
+function loop(ts){
+  if(!S.running){
+    S.raf=requestAnimationFrame(loop);
+    return;
+  }
+  const dt=Math.min(50,(ts-S.lastTime)/16.67);
+  S.lastTime=ts;
+  S.t+=dt*0.016;
+
+  const out=compute(S.params);
+  // smooth outputs
+  const k=0.08;
+  S.outputs.atp+=(out.atp-S.outputs.atp)*k;
+  S.outputs.nadph+=(out.nadph-S.outputs.nadph)*k;
+  S.outputs.o2+=(out.o2-S.outputs.o2)*k;
+  S.outputs.grad+=(out.grad-S.outputs.grad)*k;
+
+  const sOut={...out,...S.outputs,lim:out.lim,cytb:out.cytb,pq:out.pq,psi:out.psi,psii:out.psii};
+
+  const g=getGeo(S.simWidth,S.simHeight);
+  spawnParticles(g,sOut);
+  updateParticles();
+  drawSim(sOut,S.params);
+  updateOutputs(sOut);
+
+  S.raf=requestAnimationFrame(loop);
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────
+btnStart.addEventListener('click',()=>{
+  S.running=!S.running;
+  btnStart.textContent=S.running?'⏸ Pause':'▶ Start';
+  if(S.running&&!S.raf){S.lastTime=performance.now();S.raf=requestAnimationFrame(loop);}
+});
+btnReset.addEventListener('click',()=>{
+  S.running=false;S.t=0;S.atpHistory=[];S.particles=[];
+  S.outputs={atp:0,nadph:0,o2:0,grad:0};
+  btnStart.textContent='▶ Start';
+  document.getElementById('status-dot').className='';
+  document.getElementById('status-label').textContent='IDLE';
+  const g=getGeo(S.simWidth,S.simHeight);
+  drawSim({psii:0,pq:0,cytb:0,psi:0,nadph:0,atp:0,o2:0,grad:0,lim:{name:'—'}},S.params);
+  drawGraph();
+  updateOutputs({psii:0,pq:0,cytb:0,psi:0,nadph:0,atp:0,o2:0,grad:0,lim:{name:'—'}});
+});
+
+// ── Tooltip ────────────────────────────────────────────────────────────────
+function showTooltip(comp,mx,my){
+  ttTitle.textContent=comp.title;
+  ttBody.textContent=comp.body;
+  tooltip.style.display='block';
+  let lx=mx+14,ty=my-10;
+  if(lx+230>window.innerWidth) lx=mx-244;
+  if(ty+120>window.innerHeight) ty=my-120;
+  tooltip.style.left=lx+'px';tooltip.style.top=ty+'px';
+}
+function hideTooltip(){ tooltip.style.display='none'; }
+
+simCanvas.addEventListener('mousemove',e=>{
+  const rect=simCanvas.getBoundingClientRect();
+  const sx=(e.clientX-rect.left);
+  const sy=(e.clientY-rect.top);
+  let hit=null;
+  for(const c of S.components){
+    if(sx>=c.x&&sx<=c.x+c.w&&sy>=c.y&&sy<=c.y+c.h){hit=c;break;}
+  }
+  if(hit) showTooltip(hit,e.clientX,e.clientY);
+  else hideTooltip();
+});
+simCanvas.addEventListener('mouseleave',hideTooltip);
+
+// touch tooltip
+simCanvas.addEventListener('touchstart',e=>{
+  const touch=e.touches[0];
+  const rect=simCanvas.getBoundingClientRect();
+  const sx=touch.clientX-rect.left,sy=touch.clientY-rect.top;
+  let hit=null;
+  for(const c of S.components){
+    if(sx>=c.x&&sx<=c.x+c.w&&sy>=c.y&&sy<=c.y+c.h){hit=c;break;}
+  }
+  if(hit){showTooltip(hit,touch.clientX,touch.clientY);e.preventDefault();}
+  else hideTooltip();
+},{passive:false});
+
+// ── Guided prompts ─────────────────────────────────────────────────────────
+const promptConfigs=[
+  {light:2000,wave:680,temp:25,h2o:100,nadp:30,adp:80,dcmu:0},
+  {light:2000,wave:680,temp:25,h2o:100,nadp:20,adp:20,dcmu:0},
+  {light:600,wave:680,temp:25,h2o:100,nadp:5,adp:80,dcmu:0},
+];
+window.sendPrompt=function(i){
+  const cfg=promptConfigs[i];
+  Object.assign(S.params,cfg);
+  sliders.forEach(([slId,vId,key])=>{
+    if(cfg[key]!==undefined){
+      document.getElementById(slId).value=cfg[key];
+      document.getElementById(vId).textContent=cfg[key];
+    }
+  });
+  updateWaveUI(S.params.wave);
+  S.dirty=true;
+  if(!S.running){ S.running=true; btnStart.textContent='⏸ Pause'; S.lastTime=performance.now(); if(!S.raf) S.raf=requestAnimationFrame(loop); }
+};
+
+// ── Start idle render ─────────────────────────────────────────────────────
+setTimeout(()=>{
+  resizeCanvases();
+  const g=getGeo(S.simWidth,S.simHeight);
+  drawSim({psii:0,pq:0,cytb:0,psi:0,nadph:0,atp:0,o2:0,grad:0,lim:{name:'—'}},S.params);
+  S.raf=requestAnimationFrame(loop);
+},200);
+
+})();
+</script>
+</body>
+</html>
